@@ -6,7 +6,7 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #E8DDCC; display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-    #__bundler_loading { position: fixed; bottom: 20px; right: 20px; font: 13px/1.4 -apple-system, BlinkMacSystemFont, sans-serif; color: #666; background: #fff; padding: 8px 14px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.12); z-index: 10000; }
+    #__bundler_loading { display: none !important; position: fixed; bottom: 20px; right: 20px; font: 13px/1.4 -apple-system, BlinkMacSystemFont, sans-serif; color: #666; background: #fff; padding: 8px 14px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.12); z-index: 10000; }
     #__bundler_thumbnail { position: fixed; inset: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #E8DDCC; z-index: 9999; }
     #__bundler_thumbnail svg { width: 100%; height: 100%; object-fit: contain; }
     #__bundler_placeholder { color: #999; font-size: 14px; }
@@ -309,6 +309,32 @@ document.addEventListener('DOMContentLoaded', async function() {
     // preserve ordering (React before ReactDOM before Babel before text/babel).
     const doc = new DOMParser().parseFromString(template, 'text/html');
     document.documentElement.replaceWith(doc.documentElement);
+
+    // Smooth reveal: keep the page hidden on the site's beige until it has
+    // rendered, fonts are ready and visible images have loaded (max 1.5s),
+    // then fade it in. Hard fallback after 4s so it can never stay hidden.
+    (function () {
+      var st = document.createElement('style');
+      st.textContent = 'html{background:#E8DDCC}body{transition:opacity .5s ease}body:not([data-revealed]){opacity:0}';
+      (document.head || document.documentElement).appendChild(st);
+      var t0 = Date.now(), done = false;
+      function show() { if (done || !document.body) return; done = true; requestAnimationFrame(function () { document.body.setAttribute('data-revealed', ''); }); }
+      function visibleImages() {
+        return Array.from(document.images).filter(function (i) { var r = i.getBoundingClientRect(); return r.top < innerHeight && r.bottom > 0; })
+          .map(function (i) { return i.complete ? 0 : new Promise(function (r) { i.addEventListener('load', r); i.addEventListener('error', r); }); });
+      }
+      (function wait() {
+        var b = document.body;
+        if (b && b.innerText.trim().length > 40) {
+          Promise.race([
+            Promise.all([document.fonts ? document.fonts.ready : 0].concat(visibleImages())),
+            new Promise(function (r) { setTimeout(r, 1500); })
+          ]).then(function () { setTimeout(show, 60); });
+        } else if (Date.now() - t0 > 4000) { show(); }
+        else { setTimeout(wait, 50); }
+      })();
+      setTimeout(show, 4000);
+    })();
 
     // Resolve page-frame markers: mint this document's own blob for each
     // framed page — from local text when this is the root, otherwise by
